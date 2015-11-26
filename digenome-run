@@ -1,0 +1,167 @@
+#!/usr/bin/python
+
+import os
+import sys
+from sys import argv
+import pysam
+import time
+import argparse
+
+#default parameter
+args = None
+
+#environment variable
+try:
+    digenome_home = os.environ['DIGENOME_HOME']
+    if digenome_home[-1] != '/':
+        digenome_home += '/'
+except:
+    print 'warning: DIGENOME_HOME environment variable is not set, using current dir...'
+    digenome_home = './'
+        
+chrom_list=[]
+def get_chrom_list(fn):
+    with pysam.Samfile(fn, "rb") as f:
+        for item in f.header['SQ']:
+            try:
+                if item['SN'] != "*":
+                    chrom_list.append(item['SN'])
+            except:
+                pass
+    print ("Total chromosomes: %d"%(len(chrom_list)))
+    print ",".join(chrom_list)
+    
+steps = []
+def checkTime(func):
+    def wrapped(*args, **kwargs):
+        try:
+            sys.stdout.write('Running: %s\n' % func.__name__)
+            start_time = time.time()
+            func(*args, **kwargs)
+            end_time = time.time()
+            sys.stdout.write("#############################################\n")
+            sys.stdout.write("Elapsed Time: %0.2f\n\n"%(end_time - start_time))
+            
+        except KeyboardInterrupt:
+            sys.stdout.write('\nSkipping step.\n\n')
+
+    steps.append(wrapped)
+    return wrapped
+    
+
+@checkTime
+def find_position_bam():
+    
+    cmd = '{0}1.find_position_bam {1} {2}'
+    os.system(cmd.format(digenome_home, "-p "+args.prefix if args.prefix != "" else args.prefix , args.bam_file_path))
+
+@checkTime
+def sort():
+    for chrom in chrom_list:
+        os.system('pypy {0}2.sort.py {1}{2}_reverse.txt'.format(digenome_home, args.prefix, chrom))
+
+@checkTime
+def count():
+    for chrom in chrom_list:
+            os.system('pypy {0}3.count.py -u {1} {2}{3}_forward.txt'.format(digenome_home, args.range_sum, args.prefix, chrom))
+            os.system('pypy {0}3.count.py -u {1} {2}{3}_reverse_sorted.txt'.format(digenome_home, args.range_sum, args.prefix, chrom))
+
+@checkTime
+def cut_threshold():
+    for chrom in chrom_list:
+        os.system('pypy {0}4.cut_threshold.py {1}{2}_forward_freq.txt'.format(digenome_home, args.prefix, chrom))
+        os.system('pypy {0}4.cut_threshold.py {1}{2}_reverse_sorted_freq.txt'.format(digenome_home, args.prefix, chrom))
+
+@checkTime
+def coverage():
+    os.system('python {0}5.coverage.py {1} {2}'.format(digenome_home, args.prefix, args.bam_file_path))
+
+@checkTime
+def get_depth():
+    """
+    try:
+        print('Removing {0}forward.txt and {0}reverse.txt if exist...'.format(pre_prefix))
+        os.remove('{0}forward.txt'.format(pre_prefix))
+        os.remove('{0}reverse.txt'.format(pre_prefix))
+    except:
+        pass
+    """
+    for chrom in chrom_list:
+        os.system('pypy {0}6.get_depth.py -d forward {1}{2}_forward_freq_from_5.txt {1}{2}_depth.txt'.format(digenome_home, args.prefix, chrom))
+        os.system('pypy {0}6.get_depth.py -d reverse {1}{2}_reverse_sorted_freq_from_5.txt {1}{2}_depth.txt'.format(digenome_home, args.prefix, chrom))
+
+@checkTime
+def ana_depth():
+    fns = ['{0}{1}_forward_freq_from_5.txt'.format(args.prefix, chrom) for chrom in chrom_list]
+    os.system('pypy {0}7.ana_depth.py -d forward {1}'.format(digenome_home, ' '.join(fns)))
+    fns = ['{0}{1}_reverse_sorted_freq_from_5.txt'.format(args.prefix, chrom) for chrom in chrom_list]
+    os.system('pypy {0}7.ana_depth.py -d reverse {1}'.format(digenome_home, ' '.join(fns)))
+
+@checkTime
+def count_1_depth():
+    for chrom in chrom_list:
+        os.system('pypy {0}8.count-1_depth.py {1}{2}_forward_freq_from_5_ana.txt'.format(digenome_home, args.prefix, chrom))
+        os.system('pypy {0}8.count-1_depth.py {1}{2}_reverse_sorted_freq_from_5_ana.txt'.format(digenome_home, args.prefix, chrom))
+
+@checkTime
+def digenome_score():
+    for chrom in chrom_list:
+        os.system('pypy {0}9.digenome_score.py {1}{2}_forward_freq_from_5_ana_count-1.txt {1}{2}_reverse_sorted_freq_from_5_ana_count-1.txt {2} {1}'.format(digenome_home, args.prefix, chrom))
+
+@checkTime
+def combining():
+    for chrom in chrom_list:
+        os.system('pypy {0}10.combining.py {1}{2}_forward_freq_from_5_ana_count-1_digenome_score.txt {1}{2}_reverse_sorted_freq_from_5_ana_count-1_digenome_score.txt {2} {3} {1}'.format(digenome_home, args.prefix, chrom, args.bam_file_path))
+
+@checkTime
+def merging():
+    for chrom in chrom_list:
+        os.system('pypy {0}11.merging.py {1} {2} {3}'.format(digenome_home, args.bam_file_path, chrom, args.prefix))
+
+def digenome_run():
+    #start_time = time.time()
+    #steps=[func] 0~9
+    print("digenome_run()")
+    print args.step
+    print range(args.step-1, 10)
+    
+    for st in range(args.step-1, 10):
+        steps[st]()
+    #end_time = time.time()
+
+    #print('######################################')
+    #print('Total Elasped time:%0.2f sec.'%(end_time - start_time))
+
+if __name__ == '__main__':
+    print 'digenome-toolkit v2.0, written by Sunghyun Kim'
+
+    #parser
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-p", "--prefix", type=str, help="prefix")
+    parser.add_argument("-d", "--difference", type=int, help="difference", default=1)
+    parser.add_argument("-r", "--ratio_cutoff", type=float, help="ratio_cutoff", default=20.0)
+    parser.add_argument("-c", "--count_cutoff", type=int, help="count_cutoff", default=10)
+    parser.add_argument("-u", "--range_sum", type=int, help="range_sum", default=1)
+    #parser.add_argument("-s", "--sum_cutoff", type=bool, help="sum_cutoff", default=False)
+    parser.add_argument("bam_file_path", type=str, help="bam_file_path")
+    parser.add_argument("--step", type=int, help="step", default=1)
+
+    args = parser.parse_args()
+    #prefix default
+    if args.prefix != None:
+        args.prefix = "./"+ args.prefix + "_"
+    else:
+        args.prefix = "./"
+    
+    print args#should be deleted
+    #step
+    if args.step == None:
+        args.step = 0
+    #chrom_list        
+    get_chrom_list(args.bam_file_path)
+        
+    #digenome_run
+    try:
+        digenome_run()
+    except KeyboardInterrupt:
+        sys.stdout('\nQuitting digenome_run.\n')
