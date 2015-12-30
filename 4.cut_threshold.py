@@ -1,6 +1,6 @@
 from sys import argv
 import sys
-fr = 5
+fr = 2
 
 for fn in argv[1:]:
     msg = 'cut_threshold %s...'%(fn.strip('./'))
