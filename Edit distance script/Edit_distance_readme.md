@@ -1,6 +1,6 @@
 # Edit distance script.
 
-These scripts may contain two parts for calculate edit distance. At first, from.fast.get_29bp.for.revcomp.py should be run to get 29-length DNA base pairs from given chromosome number and position in your reference genome (e.g. hg19). Next, edit.step.bulge.weight.py will calculate between obtained 29-length DNA base pair and RGEN on-target sequence. Second script also gives the edit distance steps which can be identify 'addition', 'deletion' and 'subtitution'. Finally, the number of 'deletion' step will be added to edit distance score for assign 'bulge' weight.
+These scripts may contain two parts to calculate edit distance. At first, from.fast.get_29bp.for.revcomp.py should be run to get 29-length DNA base pairs from given chromosome number and position in your reference genome (e.g. hg19). Next, edit.step.bulge.weight.py will calculate between obtained 29-length DNA base pair and RGEN on-target sequence. Second script also gives the edit distance steps which can be identify 'addition', 'deletion' and 'subtitution'. Finally, the number of 'deletion' step will be added to edit distance score for assign 'bulge' weight.
 
 Instruction
 
