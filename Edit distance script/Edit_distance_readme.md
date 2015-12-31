@@ -10,7 +10,8 @@ step1. from.fast.get_29bp.for.revcomp.py
 
 1. Chromosome number and sequence position of your interest.
 
-        Example> Cloning.txt
+        Example> 
+        Cloning.txt
         chr1	17346702
         chr1	177593980
         chr3	3662556
@@ -22,7 +23,8 @@ step1. from.fast.get_29bp.for.revcomp.py
 
 2. fasta file of each chromosome of reference genome (e.g. hg19)
 
-        Example> chr1.fa, chr2.fa, chr3.fa ...
+        Example>
+        chr1.fa, chr2.fa, chr3.fa ...
 
 * Output: 29-length DNA base pairs and its reverse-complement of given chromosome number and position.
 
@@ -44,7 +46,8 @@ step2. edit.step.bultge.weight.py
 
 1. the result of step1
 
-        Example> Cloning_29.txt
+        Example>
+        Cloning_29.txt
         chr1	17346702	TTTCCGGTCCCCACAGGGTCAGTAAGGGT	TTCTAAGTCTAAACACCCTTACTGACCCT
         chr1	177593980	GAATTTCTACCCCACATGGCAGTAATGGG	AGGGGATTCACCAACCCATTACTGCCATG
         chr3	3662556	TTGTTAAAGCCCCACAGGGTAGTAGAGGA	GATCTTTGGGCGATTCCTCTACTACCCTG
