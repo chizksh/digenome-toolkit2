@@ -21,7 +21,7 @@ step1. from.fast.get_29bp.for.revcomp.py
         chr5	131423385
         chr6	23709579
 
-2. fasta file of each chromosome of reference genome (e.g. hg19)
+2. Fasta file of each chromosome of reference genome (e.g. hg19)
 
         Example>
         chr1.fa, chr2.fa, chr3.fa ...
@@ -44,7 +44,7 @@ step2. edit.step.bultge.weight.py
 
 * Input: the result of step1, on-target sequence
 
-1. the result of step1
+1. The result of step1
 
         Example>
         Cloning_29.txt
