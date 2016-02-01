@@ -114,10 +114,11 @@ int main(int argc, char** argv) {
             fprintf(fep, "%d\n", reverse-1);
 
         cnt++;
-        if (cnt % 100000 == 0)
+        if (cnt % 500000 == 0)
             printf("%d ", cnt);
     }
     reader.Close();
+    printf("\n");
     if (fsp) fclose(fsp);
     if (fep) fclose(fep);
 }

@@ -22,33 +22,39 @@ if direction != "":
         fo = open("%s_%s.txt"%(prefix, direction), "a")
 
     firstline = True
-    for ffn, fdn in fns:
-        
-        ff = open(ffn)
-        fd = open(fdn)
-        msg = "get_depth from {0} and {1}...".format(ffn.strip("./"), fdn.strip("./"))
-        sys.stdout.write(msg);sys.stdout.flush()
-        sys.stdout.write("\b"*len(msg));sys.stdout.flush()
-        for ff_line in ff:
-            pos = ff_line.split('\t')[0]
-            while True:
-                fd_line = fd.readline()
-                try:
-                    fd_pos = fd_line.split('\t')[0].split(':')[1]
-                    while int(fd_pos) > int(pos):
-                        ff_line = ff.readline()
-                        pos = ff_line.split('\t')[0]
-                    if fd_pos == pos:
-                        if firstline:
-                            firstline = False
-                        else:
-                            fo.write('\n')
-                        fo.write(fd_line.strip())
-                        break
-                except:
-                    #print (ff_line, fd_line)
-                    break
-        ff.close()
-        sys.stdout.write(" "*len(msg));sys.stdout.flush()
-        sys.stdout.write("\b"*len(msg));sys.stdout.flush()
+
+    try:
+		for ffn, fdn in fns:
+			
+			ff = open(ffn)
+			fd = open(fdn)
+			msg = "get_depth from {0} and {1}...".format(ffn.strip("./"), fdn.strip("./"))
+			sys.stdout.write(msg);sys.stdout.flush()
+			sys.stdout.write("\b"*len(msg));sys.stdout.flush()
+			for ff_line in ff:
+				pos = ff_line.split('\t')[0]
+				while True:
+					fd_line = fd.readline()
+					try:
+						fd_pos = fd_line.split('\t')[0].split(':')[1]
+						while int(fd_pos) > int(pos):
+							ff_line = ff.readline()
+							pos = ff_line.split('\t')[0]
+						if fd_pos == pos:
+							if firstline:
+								firstline = False
+							else:
+								fo.write('\n')
+							fo.write(fd_line.strip())
+							break
+					except:
+						#print (ff_line, fd_line)
+						break
+			ff.close()
+			sys.stdout.write(" "*len(msg));sys.stdout.flush()
+			sys.stdout.write("\b"*len(msg));sys.stdout.flush()
+			
+    except IOError:
+		print "IOError"
+		pass
     fo.write("\n")
