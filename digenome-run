@@ -7,11 +7,6 @@ from sys import argv
 import pysam
 import time
 import argparse
-from collections import defaultdict
-import re
-from os import path
-from os.path import isfile
-import string
 
 #default parameter
 args = None
@@ -26,7 +21,7 @@ except:
     print 'warning: DIGENOME_HOME environment variable is not set, using current dir...'
     digenome_home = './'
 
-#fuc_steps
+#fuc_steps    
 steps = []
 fuc_result = ''
 def checkTime(func):
@@ -37,6 +32,7 @@ def checkTime(func):
             func(*args, **kwargs)
             sys.stdout.write('Finished.\n')
             end_time = time.time()
+            sys.stdout.write("\n#############################################\n")
             sys.stdout.write("Elapsed Time: %0.2f\n\n"%(end_time - start_time))
         except KeyboardInterrupt:
             sys.stdout.write("KeyboardInterrupt\n")
@@ -44,13 +40,13 @@ def checkTime(func):
         except IOError:
             sys.stdout.write("IOError\n")
             raise SystemExit()
-
-
-
+        
+        
+            
 
     steps.append(wrapped)
     return wrapped
-
+    
 @checkTime
 def get_chrom_list():
     with pysam.Samfile(args.bam_file_path, "rb") as f:
@@ -66,624 +62,80 @@ def find_position_bam():
     cmd = '{0}1.find_position_bam {1} {2}'
     fuc_result = subprocess.check_output(cmd.format(digenome_home, "-p "+args.prefix if args.prefix != "" else args.prefix , args.bam_file_path), stderr=subprocess.STDOUT,shell=True)
     print fuc_result
-
     
-
-        
 @checkTime
 def sort():
-
-# reverse file should be sorted.
-# read each chromosome file, then sort by position.
-
+    cmd = 'pypy {0}2.sort.py {1}{2}_reverse.txt'
     for chrom in chrom_list:
-        file_path = args.prefix + chrom + "_reverse.txt"
-        try:
-            with open(file_path) as f:
-                l = [int(line) for line in f]
-            fns = file_path.split(".")
-
-            msg = "sort %s..."%(file_path)
-            sys.stdout.write(msg);sys.stdout.flush()
-            sys.stdout.write(" "*len(msg));sys.stdout.flush()
-            sys.stdout.write("\b"*len(msg));sys.stdout.flush()
-            l.sort()
-
-            with open(".".join(fns[:-1]) + "_sorted.txt", 'w') as fo:
-                fo.write('\n'.join(map(str, l)))
-        except IOError:
-    		print file_path + " : File can't be opened"
-    		pass
-        except Exception as e:
-            print e
-            pass
+        fuc_result = subprocess.check_output(cmd.format(digenome_home, args.prefix, chrom), stderr=subprocess.STDOUT,shell=True)
 
 @checkTime
 def count():
+    cmd = ['pypy {0}3.count.py -u {1} {2}{3}_forward.txt','pypy {0}3.count.py -u {1} {2}{3}_reverse_sorted.txt']
     for chrom in chrom_list:
-        try:
-            range_sum = args.range_sum
-            fns = []
-            fns.append(args.prefix+chrom+'_forward.txt')
-            fns.append(args.prefix+chrom+'_reverse_sorted.txt')
-
-            bufs = defaultdict(lambda: 0)
-            for fn in fns:
-                fnhead = '.'.join(fn.split('.')[:-1])
-                f = open(fn)
-                msg = 'count %s...'%(fn.strip('./'))
-                sys.stdout.write(msg);sys.stdout.flush()
-                sys.stdout.write("\b"*len(msg));sys.stdout.flush()
-
-                prev = ""
-                cnt = 0
-                for line in f:
-                    line = line.strip()
-                    if line != prev:
-                        if cnt != 0:
-                            pos = int(prev)
-                            for i in range(max(1, pos-range_sum), pos+range_sum+1):
-                                bufs[i] += cnt
-                        prev = line
-                        cnt = 0
-                    cnt += 1
-                f.close()
-
-                pos = int(prev)
-                for i in range(max(1, pos-range_sum), pos+range_sum+1):
-                    bufs[i] += cnt
-
-                l = list(bufs.items())
-                l.sort(key=lambda e:e[0])
-                with open(fnhead + '_freq.txt', 'w') as fo:
-                    for key, val in l:
-                        fo.write("%d\t%d\n"%(key, val))
-                sys.stdout.write(" "*len(msg));sys.stdout.flush()
-                sys.stdout.write("\b"*len(msg));sys.stdout.flush()
-        except IOError:
-            print fn + " : File can't be opened"
-            pass
-        except Exception as e:
-            print e
-            pass
-    
+            fuc_result = subprocess.check_output(cmd[0].format(digenome_home, args.range_sum, args.prefix, chrom), stderr=subprocess.STDOUT,shell=True)
+            fuc_result = subprocess.check_output(cmd[1].format(digenome_home, args.range_sum, args.prefix, chrom), stderr=subprocess.STDOUT,shell=True)
 
 @checkTime
 def cut_threshold():
-    
-    for chrom in chrom_list:
-    
-        fr = args.count_cutoff
-        fns = []
-        fns.append(args.prefix+chrom+'_forward_freq.txt')
-        fns.append(args.prefix+chrom+'_reverse_sorted_freq.txt')
-        
-        for fn in fns:
-            
-            msg = 'cut_threshold %s...'%(fn.strip('./'))
-            sys.stdout.write(msg);sys.stdout.flush()
-            sys.stdout.write("\b"*len(msg));sys.stdout.flush()
-            
-            try:    
-                f = open(fn)
-                fnhead = '.'.join(fn.split('.')[:-1])
-                fo = open('{}_from_{}.txt'.format(fnhead, fr), 'w')
-                for line in f:
-                    entries = line.split('\t')
-                    cnt = int(entries[1])
-                    if fr <= cnt:
-                        fo.write(line)
-                fo.close()
-                f.close()
-                
-                sys.stdout.write(" "*len(msg));sys.stdout.flush()
-                sys.stdout.write("\b"*len(msg));sys.stdout.flush()
-                
-            except IOError:
-                print fn + " : File can't be opened"
-                pass
-            except Exception as e:
-                print e
-                pass
-            
+    cmd = ['pypy {0}4.cut_threshold.py {1}{2}_forward_freq.txt %d'%args.count_cutoff,'pypy {0}4.cut_threshold.py {1}{2}_reverse_sorted_freq.txt %d'%args.count_cutoff]
+    for chrom in chrom_list:    
+        fuc_result = subprocess.check_output(cmd[0].format(digenome_home, args.prefix, chrom), stderr=subprocess.STDOUT,shell=True)
+        fuc_result = subprocess.check_output(cmd[1].format(digenome_home, args.prefix, chrom), stderr=subprocess.STDOUT,shell=True)
 
-depth_dic = {}
 @checkTime
 def coverage():
-    linechunk = []
-    prev_pos = -1
-    prev_chrom = ""
-    prefix = args.prefix
-    fn = args.bam_file_path
+    cmd = 'python {0}5.coverage.py {1} {2}'
+    fuc_result = subprocess.check_output(cmd.format(digenome_home, args.prefix, args.bam_file_path), stderr=subprocess.STDOUT,shell=True)
 
-    f = pysam.Samfile(fn, "rb")
-    depth_dic = {}
-    for cnt, ar in enumerate(f):
-        if ar.tid == -1:
-            continue
-        chrom = f.getrname(ar.tid)
-        if prev_chrom != chrom:
-            if prev_chrom != "":
-                fo.close()
-            
-            prev_chrom = chrom
-            if prefix == "":
-                fo = open(chrom+"_depth.txt", "w")
-            else:
-                fo = open(prefix+chrom+"_depth.txt", "w")
-        pos = ar.pos+1
-        cigar = ar.cigar
-        
-        if pos != prev_pos:
-            if prev_pos != -1:
-                process_chunk(linechunk)
-                for i in range(prev_pos, pos):
-                    try:
-                        fo.write('%s:%d\t%d\n'%(chrom, i, depth_dic[i]))
-                        del depth_dic[i]
-                    except KeyError:
-                        fo.write('%s:%d\t%d\n'%(chrom, i, 0))
-            prev_pos = pos
-            linechunk = [ (chrom, pos, cigar) ]
-        else:
-            linechunk.append( (chrom, pos, cigar) )
-        if cnt % 50000 == 0:
-            msg = "@"+chrom+": "+str(pos)
-            sys.stdout.write(msg);sys.stdout.flush()
-            sys.stdout.write("\b"*len(msg));sys.stdout.flush()
-            
-
-    process_chunk(linechunk)
-    for i in range(pos, pos+150):
-        try:
-            fo.write('%s:%d\t%d\n'%(chrom, i, depth_dic[i]))
-        except KeyError:
-            fo.write('%s:%d\t%d\n'%(chrom, i, 0))
-
-    f.close()
-    fo.close()        
-    
 @checkTime
 def get_depth():
-    
+    """
     try:
-        print('Removing {0}forward.txt and {0}reverse.txt if exist...'.format(args.prefix))
-        os.remove('{0}forward.txt'.format(args.prefix))
-        os.remove('{0}reverse.txt'.format(args.prefix))
+        print('Removing {0}forward.txt and {0}reverse.txt if exist...'.format(pre_prefix))
+        os.remove('{0}forward.txt'.format(pre_prefix))
+        os.remove('{0}reverse.txt'.format(pre_prefix))
     except:
         pass
-    
+    """
     for chrom in chrom_list:
-        prefix = args.prefix
-        
-        fnss = []
-        fnss.append([args.prefix+chrom+'_forward_freq_from_%d.txt'%args.count_cutoff, args.prefix+chrom+'_depth.txt','forward'])
-        fnss.append([args.prefix+chrom+'_forward_freq_from_%d.txt'%args.count_cutoff, args.prefix+chrom+'_depth.txt','reverse'])
-        for fns in fnss:
-            direction = fns[2]
-            fo = open(prefix+direction+".txt","a")
-            firstline = True
-
-            try:
-                ff = open(fns[0])
-                fd = open(fns[1])
-                
-                msg = "get_depth from {0} and {1}...".format(fns[0].strip("./"), fns[1].strip("./"))
-                sys.stdout.write(msg);sys.stdout.flush()
-                sys.stdout.write("\b"*len(msg));sys.stdout.flush()
-                
-                for ff_line in ff:
-                    pos = ff_line.split('\t')[0]
-                    while True:
-                        fd_line = fd.readline()
-                        try:
-                            fd_pos = fd_line.split('\t')[0].split(':')[1]
-                            while int(fd_pos) > int(pos):
-                                ff_line = ff.readline()
-                                pos = ff_line.split('\t')[0]
-                            if fd_pos == pos:
-                                if firstline:
-                                    firstline = False
-                                else:
-                                    fo.write('\n')
-                                fo.write(fd_line.strip())
-                                break
-                        except:
-                            #print (ff_line, fd_line)
-                            break
-                ff.close()
-                
-                sys.stdout.write(" "*len(msg));sys.stdout.flush()
-                sys.stdout.write("\b"*len(msg));sys.stdout.flush()
-                
-                fo.write("\n")
-            
-            except IOError:
-                print fns[0], fns[1] + " : File can't be opened"
-                pass
-            
+        cmd = ['pypy {0}6.get_depth.py -d forward {1}{2}_forward_freq_from_%d.txt {1}{2}_depth.txt'%args.count_cutoff,'pypy {0}6.get_depth.py -d reverse {1}{2}_reverse_sorted_freq_from_%d.txt {1}{2}_depth.txt'%args.count_cutoff]
+        fuc_result = subprocess.check_output(cmd[0].format(digenome_home, args.prefix, chrom), stderr=subprocess.STDOUT,shell=True)
+        fuc_result = subprocess.check_output(cmd[1].format(digenome_home, args.prefix, chrom), stderr=subprocess.STDOUT,shell=True)
 
 @checkTime
 def ana_depth():
-    depth_cutoff = args.ratio_cutoff
-    fr = args.count_cutoff
-    prefix = args.prefix
-    
-    for chrom in chrom_list:    
-        fnss = []
-        fnss.append([args.prefix+chrom+'_forward_freq_from_%d.txt'%args.count_cutoff, 'forward'])
-        fnss.append([args.prefix+chrom+'_reverse_sorted_freq_from_%d.txt'%args.count_cutoff, 'reverse'])
-        for fns in fnss:
-            direction = fns[1]
-            depth_dic = {}
-            fn_depth = prefix+direction+".txt"
-            
-            msg = "Reading depth information file..."
-            sys.stdout.write(msg);sys.stdout.flush()
-            sys.stdout.write("\b"*len(msg));sys.stdout.flush()
-            sys.stdout.write(" "*len(msg));sys.stdout.flush()
-            sys.stdout.write("\b"*len(msg));sys.stdout.flush()
-            
-            # Read depth information
-            cnt = 0
-            with open(fn_depth) as f:
-                for line in f:
-                    entries = line.split('\t')
-                    if len(entries) < 2:
-                        continue
-                    chromosome, position = entries[0].split(':')[:2] # Slice first two for safety
-                    depth = int(entries[1])
-                    if depth != 0:
-                        if not chromosome in depth_dic:
-                            depth_dic[chromosome] = {}
-                        depth_dic[chromosome][int(position)] = depth
-            # Read count information and print results
-            
-            fn = fns[0]
-            msg = "ana_depth {0}...".format(fn)
-            sys.stdout.write(msg);sys.stdout.flush()
-            sys.stdout.write("\b"*len(msg));sys.stdout.flush()
-            
-            # Assume that the file name contains chromosome name
-            chromosome = ""
-            matchlen = 0
-            for chrom in depth_dic:
-                if chrom in fn and matchlen < len(chrom):
-                     chromosome = chrom
-                     matchlen = len(chrom)
-            if chromosome == "":
-                print("Cannot determine chromosome name for file {0}!".format(fn))
-                continue
-            fnhead = ".".join(fn.split(".")[:-1])
-            with open(fn) as f, open(fnhead + "_ana.txt", "w") as fo:
-                for line in f:
-                    entries = line.split('\t')
-                    position = entries[0]
-                    count = entries[1].strip()
-                    try:
-                        depth = depth_dic[chromosome][int(position)]
-                        depth_percent = int(count)*100.0/depth
-                        if depth_percent >= depth_cutoff:
-                            fo.write("%s\t%s\t%d\t%.1f\n"%(position, count, depth, depth_percent))
-                    except KeyError:
-                        pass
-            sys.stdout.write(" "*len(msg));sys.stdout.flush()
-            sys.stdout.write("\b"*len(msg));sys.stdout.flush()
-
+    cmd = ['pypy {0}7.ana_depth.py -d forward {1}','pypy {0}7.ana_depth.py -d reverse {1}']
+    fns = ['{0}{1}_forward_freq_from_{2}.txt'.format(args.prefix, chrom, args.count_cutoff) for chrom in chrom_list]
+    fuc_result = subprocess.check_output(cmd[0].format(digenome_home, ' '.join(fns)), stderr=subprocess.STDOUT,shell=True)
+    fns = ['{0}{1}_reverse_sorted_freq_from_{2}.txt'.format(args.prefix, chrom, args.count_cutoff ) for chrom in chrom_list]
+    fuc_result = subprocess.check_output(cmd[1].format(digenome_home, ' '.join(fns)), stderr=subprocess.STDOUT,shell=True)
 
 @checkTime
 def count_1_depth():
+    cmd = ['pypy {0}8.count-1_depth.py {1}{2}_forward_freq_from_%d_ana.txt'%args.count_cutoff,'pypy {0}8.count-1_depth.py {1}{2}_reverse_sorted_freq_from_%d_ana.txt'%args.count_cutoff]
     for chrom in chrom_list:
-        fn = args.prefix+chrom+'_forward_freq_from_%d_ana.txt'%args.count_cutoff
-        try:
-            f = open(fn)
-            msg = "count-1 depth {}".format(fn.strip('./'))
-            sys.stdout.write(msg);sys.stdout.flush()
-            sys.stdout.write("\b"*len(msg));sys.stdout.flush()
-            fnhead = '.'.join(fn.split('.')[:-1])
-            fo = open('{}_count-1.txt'.format(fnhead), 'w')
-            for line in f.xreadlines():
-                units = line.split()
-                seq = units[0]
-                count = string.atoi(units[1])
-                depth = string.atoi(units[2])
-                count_1_depth = (count-1)*1.0/depth
-                if count-1 != 0 :
-                    s =  ( seq +" "+ str(count-1) +" "+ str(depth) +" "+ str(count_1_depth*100)+"\n" )
-                    fo.write(s)
-
-            f.close();fo.close()
-            sys.stdout.write(" "*len(msg));sys.stdout.flush()
-            sys.stdout.write("\b"*len(msg));sys.stdout.flush()
-        except IOError:
-            print fn + " : File can't be opened"
-            pass
-        except Exception as e:
-                print e
-                pass
+        fuc_result = subprocess.check_output(cmd[0].format(digenome_home, args.prefix, chrom), stderr=subprocess.STDOUT,shell=True)
+        fuc_result = subprocess.check_output(cmd[1].format(digenome_home, args.prefix, chrom), stderr=subprocess.STDOUT,shell=True)
 
 @checkTime
 def digenome_score():
-    
+    cmd = 'pypy {0}9.digenome_score.py {1}{2}_forward_freq_from_%d_ana_count-1.txt {1}{2}_reverse_sorted_freq_from_%d_ana_count-1.txt {2} {1} {3}'%(args.count_cutoff,args.count_cutoff)
     for chrom in chrom_list:
-        ffn = args.prefix+chrom+'_forward_freq_from_%d_ana_count-1.txt'%args.count_cutoff
-        rfn = args.prefix+chrom+'_reverse_sorted_freq_from_%d_ana_count-1.txt'%args.count_cutoff
-        pre_prefix = args.prefix
-        overhang = args.overhang
-            
-        ffnheader = '.'.join(ffn.split('.')[:-1])
-        rfnheader = '.'.join(rfn.split('.')[:-1])
+        fuc_result = subprocess.check_output(cmd.format(digenome_home, args.prefix, chrom, args.overhang), stderr=subprocess.STDOUT,shell=True)
 
-        msg = 'Digenome Scoring {0}{1}...'.format(pre_prefix, chrom)
-        sys.stdout.write(msg);sys.stdout.flush()
-        sys.stdout.write("\b"*len(msg));sys.stdout.flush()    
-        
-        rev_to_for(chrom,ffnheader,rfnheader,overhang)
-        for_to_rev(chrom,ffnheader,rfnheader,overhang)
-        
-        sys.stdout.write(" "*len(msg));sys.stdout.flush()
-        sys.stdout.write("\b"*len(msg));sys.stdout.flush()
-
-        
 @checkTime
 def combining():
+    cmd = 'pypy {0}10.combining.py {1}{2}_forward_freq_from_%d_ana_count-1_digenome_score.txt {1}{2}_reverse_sorted_freq_from_%d_ana_count-1_digenome_score.txt {2} {3} {1} {4}'%(args.count_cutoff,args.count_cutoff)
     for chrom in chrom_list:
-    
-        ffn = args.prefix+chrom+'_forward_freq_from_%d_ana_count-1_digenome_score.txt'%args.count_cutoff
-        rfn = args.prefix+chrom+'_reverse_sorted_freq_from_%d_ana_count-1_digenome_score.txt'%args.count_cutoff
-        chrom = chrom
-        fn = args.bam_file_path
-
-        pre_prefix = args.prefix
-        overhang = args.overhang
-            
-        ffnheader = '.'.join(ffn.split('.')[:-1])
-        rfnheader = '.'.join(rfn.split('.')[:-1])
-
-        msg = 'Combining {0}{1}...'.format(pre_prefix, chrom)
-        sys.stdout.write(msg);sys.stdout.flush()
-        sys.stdout.write("\b"*len(msg));sys.stdout.flush()
-
-        comb(fn, chrom,ffnheader,rfnheader,overhang)
-        sys.stdout.write(" "*len(msg));sys.stdout.flush()
-        sys.stdout.write("\b"*len(msg));sys.stdout.flush()
-
+        fuc_result = subprocess.check_output(cmd.format(digenome_home, args.prefix, chrom, args.bam_file_path, args.overhang), stderr=subprocess.STDOUT,shell=True)
 
 @checkTime
 def merging():
     cmd = 'pypy {0}11.merging.py {1} {2} {3}'
     for chrom in chrom_list:
-        
-        fn = args.bam_file_path
-        chrom = chrom
-        pre_prefix = args.prefix
-        
-        try:
-            fo = open ("%s_digenome-seq_result.txt"%(fn.split('.')[-2]), 'a')
-            f = open (fn+"_digenome-seq_result_"+str(chrom)+".txt")
-            for line in f.xreadlines():
-                fo.write(chrom+" "+line)
-            f.close()
-            fo.close()
-        
-        except IOError:
-            print fn + " : File can't be opened"
-            pass
-        except Exception as e:
-                print e
-                pass
+        fuc_result = subprocess.check_output(cmd.format(digenome_home, args.bam_file_path, chrom, args.prefix), stderr=subprocess.STDOUT,shell=True)
 
-        
-def process_chunk(linechunk):
-    for chrom, pos, cigar in linechunk:
-        cur_pos = pos
-        pos_back = 0
-        leftflag = True
-        for s, n in cigar:
-            if not leftflag or (s != 4 and s != 5):
-                for pos_diff in range(n):
-                    if (s != 1 and s != 4 and s != 5):
-                        if (cur_pos-pos_back) in depth_dic:
-                            depth_dic[cur_pos-pos_back] += 1
-                        else:
-                            depth_dic[cur_pos-pos_back] = 1
-                    if s == 1:
-                        pos_back += 1
-                    cur_pos += 1
-                leftflag = False
-
-def load_forward( file_name  ):
-    for_list = []
-    try:
-        f =open(file_name+'.txt')
-        for line in f.xreadlines():
-            units = line.split()
-            for_list.append( [ string.atoi(units[0]), string.atoi(units[1]), string.atof(units[3]) ] )
-        f.close()
- 
-    except IOError:
-            print file_name+'.txt' + " : File can't be opened"
-            pass
-    except Exception as e:
-            print e
-            pass
-            
-    return for_list
- 
-def load_reverse( file_name ):
-    rev_list = []
-    try:
-        f =open(file_name+'.txt')
-        for line in f.xreadlines():
-            units = line.split()
-            rev_list.append( [ string.atoi( units[0] ), string.atoi( units[1] ), string.atof( units[3] ) ] )
-        f.close()
-    
-
-    except IOError:
-            print file_name+'.txt'+ " : File can't be opened"
-            pass
-    except Exception as e:
-            print e
-            pass
-    
-    return rev_list
-
-def for_to_rev(i, forward_file ,reverse_file,overhang):
-    
-    score_dict1 = {}
-    score_dict2 = {}
-    counter = 0
-    j = 0
-    score_dict = score_dict1
-    rev_list=[]
-
-    
-    rev_list=load_reverse(reverse_file)
-    try:
-	    f= open(forward_file+'.txt')
-	    for line in f.xreadlines():
-	        counter+=1
-	        units = line.split()
-	        for_seq = string.atoi( units[0] )
-	        for_count = string.atoi( units[1] )
-	        for_percent = string.atof( units[3] )
-	 
-	        try:
-	            score_dict[for_seq] = 0
-	        except MemoryError:
-	            score_dict= score_dict2
-	            score_dict[for_seq] = 0
-	        
-	        
-	        
-	        
-	        while j < len(rev_list):
-	            rev_seq = rev_list[j][0]
-	            rev_count = rev_list[j][1]
-	            rev_percent = rev_list[j][2]
-	
-	            if  (for_seq == rev_seq+(overhang-2) or
-	                for_seq == rev_seq+(overhang-1) or
-	                for_seq == rev_seq+overhang or
-	                for_seq == rev_seq+(overhang+1) or
-	                for_seq == rev_seq+(overhang+2)):
-	                
-	                score = for_percent * rev_percent * ((for_count)+(rev_count))
-	                score_dict[for_seq] = score_dict.get(for_seq) + score
-	
-	            j += 1
-	            
-	            if for_seq+4 < rev_seq:
-	                j = max(0, j-10)
-	                break
-    except IOError:
-            print forward_file+".txt" + " : File can't be opened"
-            pass
-    except Exception as e:
-            print e
-            pass
-      
-    
-    export_to_file( [score_dict1, score_dict2],forward_file)
-                
-def rev_to_for(i, forward_file, reverse_file,overhang):
-    
-    score_dict1 = {}
-    score_dict2 = {}
-    counter = 0
-    j = 0
-    score_dict = score_dict1
-    for_list = []
-
-    for_list = load_forward(forward_file)
-    try:
-	    f= open(reverse_file+'.txt')
-	    for line in f.xreadlines():
-	        counter+=1
-	        units = line.split()
-	        rev_seq = string.atoi( units[0] )
-	        rev_count = string.atoi( units[1] )
-	        rev_percent = string.atof( units[3] )
-	        
-	        
-	        try:
-	            score_dict[rev_seq] = 0
-	        except MemoryError:
-	            score_dict= score_dict2
-	            score_dict[rev_seq] = 0
-	            
-	        
-	            
-	        while j < len(for_list):
-	            for_seq = for_list[j][0]
-	            for_count = for_list[j][1]
-	            for_percent = for_list[j][2]
-	
-	            if (rev_seq == for_seq+(overhang-2) or
-	                rev_seq == for_seq+(overhang-1) or
-	                rev_seq == for_seq+overhang or
-	                rev_seq == for_seq+(overhang+1) or
-	                rev_seq == for_seq+(overhang+2)):
-	                
-	                score = rev_percent * for_percent * ((for_count)+(rev_count))
-	                score_dict[rev_seq] = score_dict.get(rev_seq) + score
-	
-	            j += 1
-	            
-	            if rev_seq+4 < for_seq:
-	                j = max(0, j-10)
-	                break
-    except IOError:
-            print reverse_file +".txt" + " : File can't be opened"
-            pass
-    except Exception as e:
-            print e
-            pass
-    
-    export_to_file([score_dict1, score_dict2],reverse_file)
-    
-def export_to_file(dict_ary, header):
-    #print drt+" export_to_file processing...",
-    f = open( header+"_digenome_score.txt" , 'w')
-    for dic in dict_ary:
-        keys = dic.keys()
-        keys.sort()
-        for key in keys:
-            if dic[key]!=0:f.write( str(key)+" "+str(dic[key])+'\n')
-    f.close()        
-    #print " done."
-
-def comb(fn, chrom,ffnheader,rfnheader,overhang,threshhold=0):
-    try:
-        f1 = open( ffnheader+".txt")
-        f2 = open( rfnheader+".txt")
-        f3 = open( fn+"_digenome-seq_result_"+str(chrom)+".txt" , 'w')
-        
-        d_f2 = {}
-        for lines in f2.xreadlines():
-            units = lines.split()
-            d_f2[int(units[0])]=float(units[1])
-    
-        for lines in f1.xreadlines():
-            units = lines.split()
-            for_seq = string.atoi(units[0])
-            for_score = string.atof(units[1])
-            if d_f2.has_key(for_seq-overhang):
-                if (for_score+d_f2[for_seq-1])>threshhold:
-                    
-                    f3.write( str(for_seq)+" "+str(for_score)+" "
-                              +str(for_seq-overhang)+" "+str(d_f2[for_seq-overhang])+" "
-                              +str(for_score+d_f2[for_seq-overhang])+'\n' )
-        f1.close()
-        f2.close()
-        f3.close()
-    except IOError:
-            print ffnheader,rfnheader,fn + " : File can't be opened"
-            pass
-    except Exception as e:
-            print e
-            pass
         
 def digenome_run():
     #start_time = time.time()
@@ -692,7 +144,7 @@ def digenome_run():
     #print args.step
     #print range(args.step-1, 10)
     if args.step != 1 :
-	steps[0]()
+	steps[0]()   
     for st in range(args.step-1, 12):
         steps[st]()
     #end_time = time.time()
@@ -707,9 +159,9 @@ if __name__ == '__main__':
 
     #parser
     parser = argparse.ArgumentParser(prog="digenome-run")
-    parser.add_argument("-p", "--prefix", type=str,
+    parser.add_argument("-p", "--prefix", type=str, 
                         help="prefix")
-
+    
     parser.add_argument("-r", "--ratio_cutoff", type=float, default=20.0,
                         help="ratio_cutoff (default: %(default)s)")
     parser.add_argument("-c", "--count_cutoff", type=int, default=2,
@@ -722,7 +174,7 @@ if __name__ == '__main__':
                         help="overhang e.g. SpCas9=1, ZFN=4, Cpf1=2 (default: %(default)s)")
     parser.add_argument("bam_file_path", type=str,
                         help="Please specify bam_file_path")
-
+    
     #Unused arguments
     """
     parser.add_argument("--sum_cutoff", type=bool, default=False,
@@ -731,15 +183,15 @@ if __name__ == '__main__':
                         help="difference (default: %(default)s)")
     """
     args = parser.parse_args()
-
+    
     #prefix default
     if args.prefix != None:
         args.prefix = "./"+ args.prefix + "_"
     else:
         args.prefix = "./"
-
+    
     print args#should be deleted
-
+        
     #digenome_run
     try:
         digenome_run()
