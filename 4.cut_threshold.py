@@ -1,5 +1,9 @@
 from sys import argv
 import sys
+<<<<<<< HEAD
+=======
+fr = 2
+>>>>>>> 480bce5acbf71f6792c4ca6f6ac822e2897cad80
 
 try:
 	fr = int(argv[2])
@@ -25,6 +29,7 @@ try:
     
     sys.stdout.write(" "*len(msg));sys.stdout.flush()
     sys.stdout.write("\b"*len(msg));sys.stdout.flush()
+<<<<<<< HEAD
 except IOError:
 	print fn+":File can't be opened"
 	pass
@@ -32,3 +37,5 @@ except Exception as e:
 	print e
 	pass
 		
+=======
+>>>>>>> 480bce5acbf71f6792c4ca6f6ac822e2897cad80
