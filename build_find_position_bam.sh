@@ -23,4 +23,4 @@ if [ ! -f "bamtools_build/lib/libbamtools.a" ]; then
   cd ..
 fi
 
-g++ -O3 1.find_position_bam.cpp -o 1.find_position_bam -Ibamtools/include -Lbamtools/lib -lbamtools -lz
+g++ -O3 1.find_position_bam.cpp -o 1.find_position_bam -Ibamtools/include -Lbamtools/lib -lbamtools -lz -Ibamtools/src -Ibamtools_build/src
